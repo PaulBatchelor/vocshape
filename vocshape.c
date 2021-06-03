@@ -35,6 +35,9 @@
 int sk_node_glottis(sk_core *core);
 int sk_node_out(sk_core *core, SKFLT *out);
 int sk_node_tract(sk_core *core);
+int sk_node_in(sk_core *core, SKFLT *param);
+int sk_node_smoother(sk_core *core);
+int sk_node_mul(sk_core *core);
 
 #ifndef APPNAME
 #define APPNAME "native-activity"
@@ -91,6 +94,7 @@ struct UserData {
 
     float a;
     float fade;
+    SKFLT gate;
 };
 
 struct Engine {
@@ -688,9 +692,8 @@ void pointer(void *context, int i, int id, int x, int y, int s)
     if (id == 0) {
         int w, h;
         float padding;
-        struct UserData *ud;
         int hit;
-
+        struct UserData *ud;
         ud = context;
 
         w = Engine.gfx.width;
@@ -700,12 +703,13 @@ void pointer(void *context, int i, int id, int x, int y, int s)
         hit = (x > padding && x < (w - padding));
         hit = hit && (y > padding && y < (h - padding));
 
-        if (s == 0) ud->fade = -1.0;
-
-        if (hit) {
+        if (hit && s != 0) {
             int pos;
 
-            if (s == 1 || ud->fade < 0) ud->fade = 1.0;
+            if (s == 1 && ud->gate < 1.0) {
+                ud->fade = 1.0;
+                ud->gate = 1.0;
+            }
 
             pos = lrintf(44.0 * ((x - padding) / (w - 2*padding)));
 
@@ -713,9 +717,10 @@ void pointer(void *context, int i, int id, int x, int y, int s)
                 ud->diameters[pos] =
                     1.0 - ((y - padding) / (h - 2*padding));
             }
+        } else if (s == 0) {
+            ud->fade = -1.0;
+            ud->gate = 0;
         }
-
-
     }
 }
 
@@ -764,7 +769,6 @@ void synth_init(void *ctx, int sr)
     node = pw_patch_last_node(patch);
     tract = sk_node_tract_data(node);
     ud->d = sk_tract_get_tract_diameters(tract);
-    sk_node_out(core, ud->buf);
 
     ud->smoothers = malloc(sizeof(sk_smoother) * 44);
     for (i = 0; i < 44; i++) {
@@ -776,6 +780,13 @@ void synth_init(void *ctx, int sr)
 
     ud->a = 0.01;
     ud->fade = -1.0;
+    ud->gate = 0.0;
+
+    sk_node_in(core, &ud->gate);
+    sk_core_constant(core, 0.1);
+    sk_node_smoother(core);
+    sk_node_mul(core);
+    sk_node_out(core, ud->buf);
 }
 
 void synth_free(void *ctx)
