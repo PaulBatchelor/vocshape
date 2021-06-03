@@ -88,6 +88,9 @@ struct UserData {
     float *d; /* TODO better name */
 
     sk_smoother *smoothers;
+
+    float a;
+    float fade;
 };
 
 struct Engine {
@@ -652,6 +655,9 @@ static void drawit(NVGcontext *vg, void *context, double dt)
     nvgRect(vg, padding, padding, w - 2*padding, h - 2*padding);
     nvgStroke(vg);
 
+    clr = nvgRGBA(0x0c, 0x7e, 0xe0, ud->a*0xff);
+    nvgFillColor(vg, clr);
+
     /* save some computation */
     h = h - (2 * padding);
     for (i = 0; i < 44; i++) {
@@ -671,6 +677,10 @@ static void drawit(NVGcontext *vg, void *context, double dt)
         nvgRect(vg, xpos, ypos, space + 0.5, size);
         nvgFill(vg);
     }
+
+    ud->a += dt * ud->fade;
+    if (ud->a > 1.0) ud->a = 1.0;
+    if (ud->a < 0.0) ud->a = 0;
 }
 
 void pointer(void *context, int i, int id, int x, int y, int s)
@@ -690,8 +700,12 @@ void pointer(void *context, int i, int id, int x, int y, int s)
         hit = (x > padding && x < (w - padding));
         hit = hit && (y > padding && y < (h - padding));
 
+        if (s == 0) ud->fade = -1.0;
+
         if (hit) {
             int pos;
+
+            if (s == 1 || ud->fade < 0) ud->fade = 1.0;
 
             pos = lrintf(44.0 * ((x - padding) / (w - 2*padding)));
 
@@ -700,6 +714,7 @@ void pointer(void *context, int i, int id, int x, int y, int s)
                     1.0 - ((y - padding) / (h - 2*padding));
             }
         }
+
 
     }
 }
@@ -758,6 +773,9 @@ void synth_init(void *ctx, int sr)
     }
 
     sk_tract_shaper(tract, shaper, ud);
+
+    ud->a = 0.01;
+    ud->fade = -1.0;
 }
 
 void synth_free(void *ctx)
