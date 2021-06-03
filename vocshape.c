@@ -784,7 +784,7 @@ void synth_init(void *ctx, int sr)
     ud->smoothers = malloc(sizeof(sk_smoother) * 44);
     for (i = 0; i < 44; i++) {
         sk_smoother_init(&ud->smoothers[i], sr);
-        sk_smoother_time(&ud->smoothers[i], 0.01);
+        sk_smoother_time(&ud->smoothers[i], 0.1);
     }
 
     sk_tract_shaper(tract, shaper, ud);
