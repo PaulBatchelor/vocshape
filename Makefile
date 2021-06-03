@@ -35,6 +35,10 @@ OBJ += sndkit/skin.o
 OBJ += sndkit/smoother.o
 OBJ += sndkit/sksmoother.o
 OBJ += sndkit/arith.o
+OBJ += sndkit/mtof.o
+OBJ += sndkit/skmtof.o
+OBJ += sndkit/bigverb.o sndkit/n_bigverb.o
+OBJ += sndkit/dcblocker.o sndkit/n_dcblocker.o
 
 ifeq ($(ARCH), arm64-v8a)
 CC=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang

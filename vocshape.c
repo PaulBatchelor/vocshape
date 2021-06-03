@@ -38,6 +38,10 @@ int sk_node_tract(sk_core *core);
 int sk_node_in(sk_core *core, SKFLT *param);
 int sk_node_smoother(sk_core *core);
 int sk_node_mul(sk_core *core);
+int sk_node_add(sk_core *core);
+int sk_node_mtof(sk_core *core);
+int sk_node_bigverb(sk_core *core);
+int sk_node_dcblocker(sk_core *core);
 
 #ifndef APPNAME
 #define APPNAME "native-activity"
@@ -761,7 +765,8 @@ void synth_init(void *ctx, int sr)
     ud->counter = 64;
 
     core = ud->core;
-    sk_core_constant(core, 100);
+    sk_core_constant(core, 36);
+    sk_node_mtof(core);
     sk_core_constant(core, 0.8);
     sk_node_glottis(core);
     sk_node_tract(core);
@@ -786,6 +791,18 @@ void synth_init(void *ctx, int sr)
     sk_core_constant(core, 0.1);
     sk_node_smoother(core);
     sk_node_mul(core);
+
+    sk_core_dup(core);
+    sk_core_dup(core);
+    sk_core_constant(core, 0.97);
+    sk_core_constant(core, 10000);
+    sk_node_bigverb(core);
+    sk_core_drop(core);
+    sk_node_dcblocker(core);
+    sk_core_constant(core, 0.1);
+    sk_node_mul(core);
+    sk_node_add(core);
+
     sk_node_out(core, ud->buf);
 }
 
