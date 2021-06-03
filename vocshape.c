@@ -492,7 +492,7 @@ static void draw_frame(gfx_display *gfx, void *ud) {
     h = gfx->height;
     gfx->pt = gfx->t;
     gfx->t = now_sec();
-    glClearColor(0x52*cs, 0x0F*cs, 0x53*cs, 1);
+    glClearColor(0x16*cs, 0x08*cs, 0x04*cs, 1);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     nvgBeginFrame(vg, w, h, 1);
     drawit(vg, ud, gfx->t - gfx->pt);
@@ -621,12 +621,15 @@ static void hide_navbar(struct android_app* state)
 	(*vm)->DetachCurrentThread(vm);
 }
 
+#define PADDING 0.1
+
 static void drawit(NVGcontext *vg, void *context, double dt)
 {
     struct UserData *ud;
     int w, h;
     int i;
     float space;
+    float padding;
     NVGcolor clr;
 
     ud = (struct UserData *)context;
@@ -635,19 +638,27 @@ static void drawit(NVGcontext *vg, void *context, double dt)
     w = Engine.gfx.width;
     h = Engine.gfx.height;
 
-    clr = nvgRGB(0x69, 0xB0, 0xF0);
+    padding = PADDING * h;
 
-    space = w / 44.0;
+    clr = nvgRGB(0x0c, 0x7e, 0xe0);
+
+    space = (w - 2 * padding) / 44.0;
 
     nvgStrokeColor(vg, clr);
-    /* nvgStrokeWidth(vg, 8); */
+    nvgStrokeWidth(vg, 8);
     nvgFillColor(vg, clr);
 
+    nvgBeginPath(vg);
+    nvgRect(vg, padding, padding, w - 2*padding, h - 2*padding);
+    nvgStroke(vg);
+
+    /* save some computation */
+    h = h - (2 * padding);
     for (i = 0; i < 44; i++) {
         float xpos, ypos, size;
         float diameter;
         nvgBeginPath(vg);
-        xpos = i * space;
+        xpos = padding + i * space;
 
         diameter = 0.1;
         if (ud->diameters != NULL) {
@@ -655,6 +666,7 @@ static void drawit(NVGcontext *vg, void *context, double dt)
         }
         size = h * diameter;
         ypos = h - size;
+        ypos += padding;
 
         nvgRect(vg, xpos, ypos, space + 0.5, size);
         nvgFill(vg);
@@ -664,18 +676,31 @@ static void drawit(NVGcontext *vg, void *context, double dt)
 void pointer(void *context, int i, int id, int x, int y, int s)
 {
     if (id == 0) {
-        float iw, ih;
-        int pos;
+        int w, h;
+        float padding;
         struct UserData *ud;
+        int hit;
+
         ud = context;
-        iw = 1.0 / Engine.gfx.width;
-        ih = 1.0 / Engine.gfx.height;
 
-        pos = lrintf(44 * iw * x);
+        w = Engine.gfx.width;
+        h = Engine.gfx.height;
+        padding = PADDING * h;
 
-        if (ud->diameters != NULL) {
-            ud->diameters[pos] = 1 - (y * ih);
+        hit = (x > padding && x < (w - padding));
+        hit = hit && (y > padding && y < (h - padding));
+
+        if (hit) {
+            int pos;
+
+            pos = lrintf(44.0 * ((x - padding) / (w - 2*padding)));
+
+            if (ud->diameters != NULL) {
+                ud->diameters[pos] =
+                    1.0 - ((y - padding) / (h - 2*padding));
+            }
         }
+
     }
 }
 
