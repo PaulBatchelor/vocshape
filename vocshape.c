@@ -397,39 +397,10 @@ static void audio_shutdown(audio_player *ap)
 
 static pthread_mutex_t audioEngineLock = PTHREAD_MUTEX_INITIALIZER;
 
-void render(void *ctx, short *buf, int bufsize)
+void render_block(void *ctx, short *buf, int bufsize);
+static void render(void *ctx, short *buf, int bufsize)
 {
-    int s;
-    /* int v; */
-    struct UserData *ud;
-    /* struct Synth *synth; */
-
-    ud = (struct UserData *)ctx;
-
-    /* synth = ud->synth; */
-
-    for (s = 0; s < bufsize; s++) {
-        float smp;
-        short tmp;
-        tmp = 0;
-
-        if (ud->counter == 64) {
-            /* int i; */
-            ud->counter = 0;
-            /* for (i = 0; i < 44; i++) ud->d[i] = 1.7; */
-            sk_core_compute(ud->core);
-        }
-
-        smp = ud->buf[ud->counter];
-        ud->counter++;
-
-        tmp = 0.9 * smp * 32767;
-
-        if (tmp > 32767) tmp = 32767;
-        if (tmp < -32767) tmp = -32767;
-
-        buf[s] = tmp;
-    }
+    render_block(ctx, buf, bufsize);
 }
 
 static void render_a_buffer(audio_player *ap)
@@ -494,46 +465,7 @@ static void audio_init(audio_player *ap)
     audio_start(ap);
 }
 
-static void drawit(NVGcontext *vg, void *context, double dt)
-{
-    struct UserData *ud;
-    int w, h;
-    int i;
-    float space;
-    NVGcolor clr;
-
-    ud = (struct UserData *)context;
-
-    /* TODO: don't use Engine */
-    w = Engine.gfx.width;
-    h = Engine.gfx.height;
-
-    clr = nvgRGB(0x69, 0xB0, 0xF0);
-
-    space = w / 44.0;
-
-    nvgStrokeColor(vg, clr);
-    /* nvgStrokeWidth(vg, 8); */
-    nvgFillColor(vg, clr);
-
-    for (i = 0; i < 44; i++) {
-        float xpos, ypos, size;
-        float diameter;
-        nvgBeginPath(vg);
-        xpos = i * space;
-
-        diameter = 0.1;
-        if (ud->diameters != NULL) {
-            diameter = ud->diameters[i];
-        }
-        size = h * diameter;
-        ypos = h - size;
-
-        nvgRect(vg, xpos, ypos, space + 0.5, size);
-        nvgFill(vg);
-    }
-}
-
+static void drawit(NVGcontext *vg, void *context, double dt);
 static double now_sec(void)
 {
     struct timeval tv;
@@ -619,108 +551,6 @@ static void engine_handle_cmd(struct android_app* app, int32_t cmd)
     }
 }
 
-void pointer(void *context, int i, int id, int x, int y, int s)
-{
-    if (id == 0) {
-        float iw, ih;
-        int pos;
-        struct UserData *ud;
-        ud = context;
-        iw = 1.0 / Engine.gfx.width;
-        ih = 1.0 / Engine.gfx.height;
-
-        pos = lrintf(44 * iw * x);
-
-        if (ud->diameters != NULL) {
-            ud->diameters[pos] = 1 - (y * ih);
-        }
-    }
-}
-
-pw_node * pw_patch_last(pw_patch *p);
-sk_tract * sk_node_tract_data(pw_node *node);
-
-static void shaper(sk_tract *tract,
-                   SKFLT *diam_out,
-                   void *ctx)
-{
-    struct UserData *ud;
-    SKFLT *diam_in;
-    int i;
-    ud = ctx;
-    diam_in = ud->diameters;
-    for (i = 0; i < 44; i++) {
-        diam_out[i] = sk_smoother_tick(&ud->smoothers[i],
-                                       0.1 + 3.4*diam_in[i]);
-    }
-}
-
-void synth_init(void *ctx, int sr)
-{
-    struct UserData *ud;
-    int i;
-    sk_core *core;
-    pw_patch *patch;
-    pw_node *node;
-    sk_tract *tract;
-
-    ud = (struct UserData *)ctx;
-    ud->diameters = malloc(sizeof(float) * 44);
-    ud->buf = malloc(sizeof(float) * 64);
-
-    for (i = 0; i < 44; i++) ud->diameters[i] = 0.5;
-    for (i = 0; i < 64; i++) ud->buf[i] = 0;
-
-    ud->core = sk_core_new(sr);
-    ud->counter = 64;
-
-    core = ud->core;
-    sk_core_constant(core, 100);
-    sk_core_constant(core, 0.8);
-    sk_node_glottis(core);
-    sk_node_tract(core);
-    patch = sk_core_patch(core);
-    node = pw_patch_last(patch);
-    tract = sk_node_tract_data(node);
-    ud->d = sk_tract_get_tract_diameters(tract);
-    sk_node_out(core, ud->buf);
-
-    ud->smoothers = malloc(sizeof(sk_smoother) * 44);
-    for (i = 0; i < 44; i++) {
-        sk_smoother_init(&ud->smoothers[i], sr);
-        sk_smoother_time(&ud->smoothers[i], 0.01);
-    }
-
-    sk_tract_shaper(tract, shaper, ud);
-}
-
-void synth_free(void *ctx)
-{
-    struct UserData *ud;
-    ud = (struct UserData *)ctx;
-
-    if (ud->diameters != NULL) {
-        free(ud->diameters);
-        ud->diameters = NULL;
-    }
-
-    if (ud->buf != NULL) {
-        free(ud->buf);
-        ud->buf = NULL;
-    }
-
-    if (ud->core != NULL) {
-        sk_core_del(ud->core);
-        ud->core = NULL;
-        ud->d = NULL;
-    }
-
-    if (ud->smoothers != NULL) {
-        free(ud->smoothers);
-        ud->smoothers = NULL;
-    }
-}
-
 static void hide_navbar(struct android_app* state)
 {
 	JNIEnv* env;
@@ -791,6 +621,183 @@ static void hide_navbar(struct android_app* state)
 	(*vm)->DetachCurrentThread(vm);
 }
 
+static void drawit(NVGcontext *vg, void *context, double dt)
+{
+    struct UserData *ud;
+    int w, h;
+    int i;
+    float space;
+    NVGcolor clr;
+
+    ud = (struct UserData *)context;
+
+    /* TODO: don't use Engine */
+    w = Engine.gfx.width;
+    h = Engine.gfx.height;
+
+    clr = nvgRGB(0x69, 0xB0, 0xF0);
+
+    space = w / 44.0;
+
+    nvgStrokeColor(vg, clr);
+    /* nvgStrokeWidth(vg, 8); */
+    nvgFillColor(vg, clr);
+
+    for (i = 0; i < 44; i++) {
+        float xpos, ypos, size;
+        float diameter;
+        nvgBeginPath(vg);
+        xpos = i * space;
+
+        diameter = 0.1;
+        if (ud->diameters != NULL) {
+            diameter = ud->diameters[i];
+        }
+        size = h * diameter;
+        ypos = h - size;
+
+        nvgRect(vg, xpos, ypos, space + 0.5, size);
+        nvgFill(vg);
+    }
+}
+
+void pointer(void *context, int i, int id, int x, int y, int s)
+{
+    if (id == 0) {
+        float iw, ih;
+        int pos;
+        struct UserData *ud;
+        ud = context;
+        iw = 1.0 / Engine.gfx.width;
+        ih = 1.0 / Engine.gfx.height;
+
+        pos = lrintf(44 * iw * x);
+
+        if (ud->diameters != NULL) {
+            ud->diameters[pos] = 1 - (y * ih);
+        }
+    }
+}
+
+sk_tract * sk_node_tract_data(pw_node *node);
+
+static void shaper(sk_tract *tract,
+                   SKFLT *diam_out,
+                   void *ctx)
+{
+    struct UserData *ud;
+    SKFLT *diam_in;
+    int i;
+    ud = ctx;
+    diam_in = ud->diameters;
+    for (i = 0; i < 44; i++) {
+        diam_out[i] = sk_smoother_tick(&ud->smoothers[i],
+                                       0.1 + 3.4*diam_in[i]);
+    }
+}
+
+void synth_init(void *ctx, int sr)
+{
+    struct UserData *ud;
+    int i;
+    sk_core *core;
+    pw_patch *patch;
+    pw_node *node;
+    sk_tract *tract;
+
+    ud = (struct UserData *)ctx;
+    ud->diameters = malloc(sizeof(float) * 44);
+    ud->buf = malloc(sizeof(float) * 64);
+
+    for (i = 0; i < 44; i++) ud->diameters[i] = 0.5;
+    for (i = 0; i < 64; i++) ud->buf[i] = 0;
+
+    ud->core = sk_core_new(sr);
+    ud->counter = 64;
+
+    core = ud->core;
+    sk_core_constant(core, 100);
+    sk_core_constant(core, 0.8);
+    sk_node_glottis(core);
+    sk_node_tract(core);
+    patch = sk_core_patch(core);
+    node = pw_patch_last_node(patch);
+    tract = sk_node_tract_data(node);
+    ud->d = sk_tract_get_tract_diameters(tract);
+    sk_node_out(core, ud->buf);
+
+    ud->smoothers = malloc(sizeof(sk_smoother) * 44);
+    for (i = 0; i < 44; i++) {
+        sk_smoother_init(&ud->smoothers[i], sr);
+        sk_smoother_time(&ud->smoothers[i], 0.01);
+    }
+
+    sk_tract_shaper(tract, shaper, ud);
+}
+
+void synth_free(void *ctx)
+{
+    struct UserData *ud;
+    ud = (struct UserData *)ctx;
+
+    if (ud->diameters != NULL) {
+        free(ud->diameters);
+        ud->diameters = NULL;
+    }
+
+    if (ud->buf != NULL) {
+        free(ud->buf);
+        ud->buf = NULL;
+    }
+
+    if (ud->core != NULL) {
+        sk_core_del(ud->core);
+        ud->core = NULL;
+        ud->d = NULL;
+    }
+
+    if (ud->smoothers != NULL) {
+        free(ud->smoothers);
+        ud->smoothers = NULL;
+    }
+}
+
+void render_block(void *ctx, short *buf, int bufsize)
+{
+    int s;
+    /* int v; */
+    struct UserData *ud;
+    /* struct Synth *synth; */
+
+    ud = (struct UserData *)ctx;
+
+    /* synth = ud->synth; */
+
+    for (s = 0; s < bufsize; s++) {
+        float smp;
+        short tmp;
+        tmp = 0;
+
+        if (ud->counter == 64) {
+            /* int i; */
+            ud->counter = 0;
+            /* for (i = 0; i < 44; i++) ud->d[i] = 1.7; */
+            sk_core_compute(ud->core);
+        }
+
+        smp = ud->buf[ud->counter];
+        ud->counter++;
+
+        tmp = 0.9 * smp * 32767;
+
+        if (tmp > 32767) tmp = 32767;
+        if (tmp < -32767) tmp = -32767;
+
+        buf[s] = tmp;
+    }
+}
+
+
 void android_main(struct android_app *state)
 {
     struct UserData ud;
@@ -836,7 +843,6 @@ void android_main(struct android_app *state)
                 return;
             }
         }
-
         if (Engine.gfx.animating) {
             draw_frame(&Engine.gfx, Engine.ud);
         }
