@@ -99,6 +99,7 @@ struct UserData {
     float a;
     float fade;
     SKFLT gate;
+    int fingeron;
 };
 
 struct Engine {
@@ -710,9 +711,10 @@ void pointer(void *context, int i, int id, int x, int y, int s)
         if (hit && s != 0) {
             int pos;
 
-            if (s == 1 && ud->gate < 1.0) {
+            if (s == 1 || ud->fingeron) {
                 ud->fade = 1.0;
                 ud->gate = 1.0;
+                ud->fingeron = 0;
             }
 
             pos = lrintf(44.0 * ((x - padding) / (w - 2*padding)));
@@ -724,6 +726,10 @@ void pointer(void *context, int i, int id, int x, int y, int s)
         } else if (s == 0) {
             ud->fade = -1.0;
             ud->gate = 0;
+            ud->fingeron = 0;
+        } else if (s != 0) {
+            /* finger is on, but not in the window */
+            ud->fingeron = 1;
         }
     }
 }
@@ -804,6 +810,8 @@ void synth_init(void *ctx, int sr)
     sk_node_add(core);
 
     sk_node_out(core, ud->buf);
+
+    ud->fingeron = 0;
 }
 
 void synth_free(void *ctx)
