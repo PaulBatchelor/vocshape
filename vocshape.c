@@ -100,6 +100,9 @@ struct UserData {
     float fade;
     SKFLT gate;
     int fingeron;
+    SKFLT pitch;
+    int nfingers;
+    int leader;
 };
 
 struct Engine {
@@ -633,6 +636,41 @@ static void hide_navbar(struct android_app* state)
 	(*vm)->DetachCurrentThread(vm);
 }
 
+void render_block(void *ctx, short *buf, int bufsize)
+{
+    int s;
+    /* int v; */
+    struct UserData *ud;
+    /* struct Synth *synth; */
+
+    ud = (struct UserData *)ctx;
+
+    /* synth = ud->synth; */
+
+    for (s = 0; s < bufsize; s++) {
+        float smp;
+        short tmp;
+        tmp = 0;
+
+        if (ud->counter == 64) {
+            /* int i; */
+            ud->counter = 0;
+            /* for (i = 0; i < 44; i++) ud->d[i] = 1.7; */
+            sk_core_compute(ud->core);
+        }
+
+        smp = ud->buf[ud->counter];
+        ud->counter++;
+
+        tmp = 0.9 * smp * 32767;
+
+        if (tmp > 32767) tmp = 32767;
+        if (tmp < -32767) tmp = -32767;
+
+        buf[s] = tmp;
+    }
+}
+
 #define PADDING 0.1
 
 static void drawit(NVGcontext *vg, void *context, double dt)
@@ -692,14 +730,19 @@ static void drawit(NVGcontext *vg, void *context, double dt)
     if (ud->a < 0.0) ud->a = 0;
 }
 
+#define KEY 35
+
+static SKFLT pitches[] = {-2, 0, 3, 5, 7, 10, 12};
+
 void pointer(void *context, int i, int id, int x, int y, int s)
 {
-    if (id == 0) {
+    struct UserData *ud;
+    ud = context;
+    LOGI("nfingers %d\n", ud->nfingers);
+    if (ud->nfingers <= 2) {
         int w, h;
         float padding;
         int hit;
-        struct UserData *ud;
-        ud = context;
 
         w = Engine.gfx.width;
         h = Engine.gfx.height;
@@ -715,21 +758,45 @@ void pointer(void *context, int i, int id, int x, int y, int s)
                 ud->fade = 1.0;
                 ud->gate = 1.0;
                 ud->fingeron = 0;
+                ud->nfingers++;
+                if (ud->nfingers == 1) {
+                    ud->leader = id;
+                }
             }
 
-            pos = lrintf(44.0 * ((x - padding) / (w - 2*padding)));
 
-            if (ud->diameters != NULL) {
-                ud->diameters[pos] =
-                    1.0 - ((y - padding) / (h - 2*padding));
+            if (ud->nfingers == 1) {
+                pos = lrintf(44.0 * ((x - padding) / (w - 2*padding)));
+
+                if (ud->diameters != NULL) {
+                    ud->diameters[pos] =
+                        1.0 - ((y - padding) / (h - 2*padding));
+                }
+            } else if (ud->nfingers && id == ud->leader) {
+                pos = lrintf(7 * ((x - padding) / (w - 2*padding)));
+
+                if (pos >= 7) pos = 4;
+                if (pos < 0) pos = 0;
+                ud->pitch = KEY + pitches[pos];
             }
+
         } else if (s == 0) {
-            ud->fade = -1.0;
-            ud->gate = 0;
+            ud->nfingers--;
+
+            if (ud->nfingers == 0) {
+                ud->fade = -1.0;
+                ud->gate = 0;
+                ud->leader = -1;
+            } else if (ud->nfingers == 1) {
+                ud->leader = id;
+            }
+
             ud->fingeron = 0;
         } else if (s != 0) {
             /* finger is on, but not in the window */
-            ud->fingeron = 1;
+            if (ud->nfingers == 0) {
+                ud->fingeron = 1;
+            }
         }
     }
 }
@@ -771,7 +838,11 @@ void synth_init(void *ctx, int sr)
     ud->counter = 64;
 
     core = ud->core;
-    sk_core_constant(core, 36);
+    ud->pitch = KEY + pitches[0];
+    sk_node_in(core, &ud->pitch);
+    sk_core_constant(core, 0.05);
+    sk_node_smoother(core);
+
     sk_node_mtof(core);
     sk_core_constant(core, 0.8);
     sk_node_glottis(core);
@@ -812,6 +883,8 @@ void synth_init(void *ctx, int sr)
     sk_node_out(core, ud->buf);
 
     ud->fingeron = 0;
+    ud->nfingers = 0;
+    ud->leader = -1;
 }
 
 void synth_free(void *ctx)
@@ -838,41 +911,6 @@ void synth_free(void *ctx)
     if (ud->smoothers != NULL) {
         free(ud->smoothers);
         ud->smoothers = NULL;
-    }
-}
-
-void render_block(void *ctx, short *buf, int bufsize)
-{
-    int s;
-    /* int v; */
-    struct UserData *ud;
-    /* struct Synth *synth; */
-
-    ud = (struct UserData *)ctx;
-
-    /* synth = ud->synth; */
-
-    for (s = 0; s < bufsize; s++) {
-        float smp;
-        short tmp;
-        tmp = 0;
-
-        if (ud->counter == 64) {
-            /* int i; */
-            ud->counter = 0;
-            /* for (i = 0; i < 44; i++) ud->d[i] = 1.7; */
-            sk_core_compute(ud->core);
-        }
-
-        smp = ud->buf[ud->counter];
-        ud->counter++;
-
-        tmp = 0.9 * smp * 32767;
-
-        if (tmp > 32767) tmp = 32767;
-        if (tmp < -32767) tmp = -32767;
-
-        buf[s] = tmp;
     }
 }
 
