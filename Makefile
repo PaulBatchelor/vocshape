@@ -40,6 +40,9 @@ OBJ += sndkit/skmtof.o
 OBJ += sndkit/bigverb.o sndkit/n_bigverb.o
 OBJ += sndkit/dcblocker.o sndkit/n_dcblocker.o
 
+DIR += soundpipe
+OBJ += soundpipe/butlp.o
+
 ifeq ($(ARCH), arm64-v8a)
 CC=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang
 CFLAGS+=-m64
