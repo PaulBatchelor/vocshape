@@ -42,6 +42,7 @@ OBJ += sndkit/dcblocker.o sndkit/n_dcblocker.o
 
 DIR += soundpipe
 OBJ += soundpipe/butlp.o
+OBJ += soundpipe/n_butlp.o
 
 ifeq ($(ARCH), arm64-v8a)
 CC=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang
