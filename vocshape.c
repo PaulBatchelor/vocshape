@@ -42,6 +42,7 @@ int sk_node_add(sk_core *core);
 int sk_node_mtof(sk_core *core);
 int sk_node_bigverb(sk_core *core);
 int sk_node_dcblocker(sk_core *core);
+int sk_node_butlp(sk_core *core);
 
 #ifndef APPNAME
 #define APPNAME "native-activity"
@@ -928,6 +929,9 @@ void synth_init(void *ctx, int sr)
     sk_core_constant(core, 0.1);
     sk_node_mul(core);
     sk_node_add(core);
+
+    sk_core_constant(core, 3500);
+    sk_node_butlp(core);
 
     sk_node_out(core, ud->buf);
 
