@@ -829,7 +829,7 @@ void pointer(void *context, int i, int id, int x, int y, int s)
                 ud->gate = 0;
                 ud->leader = -1;
             } else if (ud->nfingers == 1) {
-                ud->leader = id;
+                /* ud->leader = id; */
             }
 
             ud->fingeron = 0;
@@ -842,7 +842,6 @@ void pointer(void *context, int i, int id, int x, int y, int s)
     } else {
         if (s == 1) {
             ud->nfingers++;
-            LOGI("nfingers: %d\n", ud->nfingers);
         } else if (s == 0) {
             ud->nfingers--;
         }
