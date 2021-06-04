@@ -103,6 +103,7 @@ struct UserData {
     SKFLT pitch;
     int nfingers;
     int leader;
+    SKFLT pitchpos[2];
 };
 
 struct Engine {
@@ -672,15 +673,22 @@ void render_block(void *ctx, short *buf, int bufsize)
 }
 
 #define PADDING 0.1
+#define NPITCHES 7
+#define KEY 35
+
+static SKFLT pitches[] = {-2, 0, 3, 5, 7, 10, 12};
 
 static void drawit(NVGcontext *vg, void *context, double dt)
 {
     struct UserData *ud;
     int w, h;
+    int paddingh;
     int i;
     float space;
     float padding;
     NVGcolor clr;
+    NVGcolor clr2;
+    clr2 = nvgRGB(255, 105, 180);
 
     ud = (struct UserData *)context;
 
@@ -690,23 +698,19 @@ static void drawit(NVGcontext *vg, void *context, double dt)
 
     padding = PADDING * h;
 
-    clr = nvgRGB(0x0c, 0x7e, 0xe0);
+    /* clr = nvgRGB(0x0c, 0x7e, 0xe0); */
 
     space = (w - 2 * padding) / 44.0;
 
-    nvgStrokeColor(vg, clr);
-    nvgStrokeWidth(vg, 8);
-    nvgFillColor(vg, clr);
-
-    nvgBeginPath(vg);
-    nvgRect(vg, padding, padding, w - 2*padding, h - 2*padding);
-    nvgStroke(vg);
+    /* clr = nvgRGB(0x69, 0xB0, 0xF0); */
+    /* nvgStrokeColor(vg, clr); */
+    /* nvgStrokeWidth(vg, 8); */
 
     clr = nvgRGBA(0x0c, 0x7e, 0xe0, ud->a*0xff);
     nvgFillColor(vg, clr);
 
     /* save some computation */
-    h = h - (2 * padding);
+    paddingh = h - (2 * padding);
     for (i = 0; i < 44; i++) {
         float xpos, ypos, size;
         float diameter;
@@ -717,28 +721,61 @@ static void drawit(NVGcontext *vg, void *context, double dt)
         if (ud->diameters != NULL) {
             diameter = ud->diameters[i];
         }
-        size = h * diameter;
-        ypos = h - size;
+        size = paddingh * diameter;
+        ypos = paddingh - size;
         ypos += padding;
 
         nvgRect(vg, xpos, ypos, space + 0.5, size);
         nvgFill(vg);
     }
 
+    if (ud->nfingers >= 2) {
+        nvgStrokeColor(vg, clr2);
+        nvgStrokeWidth(vg, 8);
+        nvgFillColor(vg, clr2);
+
+        space = (w - 2 * padding) / NPITCHES;
+        for (i = 0; i < NPITCHES - 1; i++) {
+            float pos;
+            pos = padding + (i + 1) * space;
+            nvgBeginPath(vg);
+            nvgMoveTo(vg, pos, padding);
+            nvgLineTo(vg, pos, h - padding);
+            nvgStroke(vg);
+
+        }
+
+    }
+
+
+    clr = nvgRGB(0x0c, 0x7e, 0xe0);
+    nvgStrokeColor(vg, clr);
+    nvgStrokeWidth(vg, 8);
+    nvgBeginPath(vg);
+    nvgRect(vg, padding, padding, w - 2*padding, h - 2*padding);
+    nvgStroke(vg);
+
+    if (ud->nfingers >= 2) {
+        nvgFillColor(vg, clr2);
+        nvgBeginPath(vg);
+        nvgCircle(vg,
+                    ud->pitchpos[0], ud->pitchpos[1],
+                    h * 0.15);
+        nvgFill(vg);
+    }
+
+
     ud->a += dt * ud->fade;
     if (ud->a > 1.0) ud->a = 1.0;
     if (ud->a < 0.0) ud->a = 0;
 }
 
-#define KEY 35
-
-static SKFLT pitches[] = {-2, 0, 3, 5, 7, 10, 12};
 
 void pointer(void *context, int i, int id, int x, int y, int s)
 {
     struct UserData *ud;
     ud = context;
-    LOGI("nfingers %d\n", ud->nfingers);
+
     if (ud->nfingers <= 2) {
         int w, h;
         float padding;
@@ -773,11 +810,14 @@ void pointer(void *context, int i, int id, int x, int y, int s)
                         1.0 - ((y - padding) / (h - 2*padding));
                 }
             } else if (ud->nfingers && id == ud->leader) {
-                pos = lrintf(7 * ((x - padding) / (w - 2*padding)));
+                pos = lrintf(NPITCHES *
+                             ((x - padding*1.5) / (w - 2*padding)));
 
-                if (pos >= 7) pos = 4;
+                if (pos >= NPITCHES) pos = NPITCHES - 1;
                 if (pos < 0) pos = 0;
                 ud->pitch = KEY + pitches[pos];
+                ud->pitchpos[0] = x;
+                ud->pitchpos[1] = y;
             }
 
         } else if (s == 0) {
@@ -798,7 +838,16 @@ void pointer(void *context, int i, int id, int x, int y, int s)
                 ud->fingeron = 1;
             }
         }
+    } else {
+        if (s == 1) {
+            ud->nfingers++;
+            LOGI("nfingers: %d\n", ud->nfingers);
+        } else if (s == 0) {
+            ud->nfingers--;
+        }
     }
+
+    if (s == 1) LOGI("nfingers: %d", ud->nfingers);
 }
 
 sk_tract * sk_node_tract_data(pw_node *node);
@@ -885,6 +934,8 @@ void synth_init(void *ctx, int sr)
     ud->fingeron = 0;
     ud->nfingers = 0;
     ud->leader = -1;
+    ud->pitchpos[0] = -1;
+    ud->pitchpos[1] = -1;
 }
 
 void synth_free(void *ctx)
