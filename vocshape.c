@@ -931,6 +931,8 @@ void synth_init(void *ctx, int sr)
 
     sk_core_constant(core, 3500);
     sk_node_butlp(core);
+    sk_core_constant(core, 1.3);
+    sk_node_mul(core);
 
     sk_node_out(core, ud->buf);
 
