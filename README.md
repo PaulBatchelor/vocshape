@@ -18,7 +18,7 @@ SDK, with graphics beiing done in nanovg via the OpenGLES
 backend, and sound being produced via OpenSL.
 
 The DSP used here features code from
-(sndkit)[https://pbat.ch/sndkit], in particular the
+[sndkit](https://pbat.ch/sndkit), in particular the
 [tract](https://pbat.ch/sndkit/tract) and
 [glottis](https://pbat.ch/sndkit/glottis) algorithms
 which are the main components used to form a vocal tract
